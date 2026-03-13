@@ -3,15 +3,15 @@ import {
   Search, 
   Plus, 
   Filter, 
-  MoreVertical, 
   Edit2, 
   Trash2, 
   QrCode,
-  UserPlus,
   X
 } from 'lucide-react';
 import { Student, Room } from '../types';
 import { useAuth } from '../AuthContext';
+import { db } from '../firebase';
+import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 
 export const Students: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -33,43 +33,52 @@ export const Students: React.FC = () => {
   });
 
   useEffect(() => {
-    fetchData();
+    // Listen to rooms first to resolve room numbers
+    const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
+      const roomsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as Room));
+      setRooms(roomsData);
+    });
+
+    const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
+      const studentsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as Student));
+      setStudents(studentsData);
+      setLoading(false);
+    });
+
+    return () => {
+      unsubRooms();
+      unsubStudents();
+    };
   }, []);
 
-  const fetchData = async () => {
-    const [studentsRes, roomsRes] = await Promise.all([
-      fetch('/api/students'),
-      fetch('/api/rooms')
-    ]);
-    setStudents(await studentsRes.json());
-    setRooms(await roomsRes.json());
-    setLoading(false);
-  };
-
   const handleDelete = async (id: string) => {
-    if (confirm('Bạn có chắc chắn muốn xóa sinh viên này không?')) {
-      await fetch(`/api/students/${id}`, { method: 'DELETE' });
-      fetchData();
+    if (window.confirm('Bạn có chắc chắn muốn xóa sinh viên này không?')) {
+      await deleteDoc(doc(db, 'students', id));
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const method = editingStudent ? 'PUT' : 'POST';
-    const url = editingStudent ? `/api/students/${editingStudent.id}` : '/api/students';
     
-    const response = await fetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
-    });
+    const studentData = {
+      ...formData,
+      status: editingStudent ? editingStudent.status : 'Inside'
+    };
 
-    if (response.ok) {
-      setIsModalOpen(false);
-      setEditingStudent(null);
-      setFormData({ id: '', name: '', class: '', room_id: '', phone: '', parent_phone: '', qr_code_id: '' });
-      fetchData();
+    if (editingStudent) {
+      await updateDoc(doc(db, 'students', editingStudent.id), studentData);
+    } else {
+      await setDoc(doc(db, 'students', formData.id), studentData);
     }
+
+    setIsModalOpen(false);
+    setEditingStudent(null);
+    setFormData({ id: '', name: '', class: '', room_id: '', phone: '', parent_phone: '', qr_code_id: '' });
+  };
+
+  const getRoomNumber = (roomId: string | number) => {
+    const room = rooms.find(r => r.id.toString() === roomId.toString());
+    return room ? room.room_number : 'N/A';
   };
 
   const openEdit = (student: Student) => {
@@ -172,7 +181,7 @@ export const Students: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm text-slate-700 font-medium">Lớp {student.class}</p>
-                      <p className="text-xs text-slate-500">Phòng {student.room_number}</p>
+                      <p className="text-xs text-slate-500">Phòng {getRoomNumber(student.room_id)}</p>
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm text-slate-700">{student.phone}</p>

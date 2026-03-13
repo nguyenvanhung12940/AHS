@@ -1,0 +1,129 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Fields:
+    //   - email: string (required, email format)
+    //   - role: string (required, enum: admin, teacher)
+    //   - name: string (required)
+    //
+    // Collection: rooms
+    // Fields:
+    //   - room_number: string (required)
+    //   - capacity: int (required)
+    //   - status: string (enum: Available, Full, Maintenance)
+    //
+    // Collection: students
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required)
+    //   - class: string
+    //   - room_id: string (required)
+    //   - phone: string
+    //   - parent_phone: string
+    //   - status: string (enum: Inside, Outside)
+    //   - qr_code_id: string
+    //
+    // Collection: logs
+    // Fields:
+    //   - student_id: string (required)
+    //   - action: string (required, enum: Check-in, Check-out)
+    //   - timestamp: timestamp (required)
+    //   - status: string (required, enum: Normal, Late)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "hainguyenbtm.070589@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isTeacher() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasOnly(['email', 'role', 'name']) &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'teacher'] &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100;
+    }
+
+    function isValidRoom(data) {
+      return data.keys().hasAll(['room_number', 'capacity']) &&
+             data.keys().hasOnly(['room_number', 'capacity', 'status']) &&
+             data.room_number is string && data.room_number.size() > 0 &&
+             data.capacity is int && data.capacity > 0 &&
+             (!('status' in data) || data.status in ['Available', 'Full', 'Maintenance']);
+    }
+
+    function isValidStudent(data) {
+      return data.keys().hasAll(['id', 'name', 'room_id']) &&
+             data.keys().hasOnly(['id', 'name', 'class', 'room_id', 'phone', 'parent_phone', 'status', 'qr_code_id']) &&
+             data.id is string && data.name is string && data.room_id is string &&
+             (!('status' in data) || data.status in ['Inside', 'Outside']);
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['student_id', 'action', 'timestamp', 'status']) &&
+             data.student_id is string &&
+             data.action in ['Check-in', 'Check-out'] &&
+             data.timestamp is timestamp &&
+             data.status in ['Normal', 'Late'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (isOwner(userId) || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    (isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role));
+      allow delete: if isAdmin();
+    }
+
+    match /rooms/{roomId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /students/{studentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isTeacher();
+    }
+
+    match /logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidLog(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+  }
+}

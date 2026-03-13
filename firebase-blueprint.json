@@ -1,0 +1,72 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System administrator or teacher",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "teacher"] },
+        "name": { "type": "string" }
+      },
+      "required": ["email", "role", "name"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Dormitory room",
+      "type": "object",
+      "properties": {
+        "room_number": { "type": "string" },
+        "capacity": { "type": "integer" },
+        "status": { "type": "string", "enum": ["Available", "Full", "Maintenance"] }
+      },
+      "required": ["room_number", "capacity"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student living in the dormitory",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "class": { "type": "string" },
+        "room_id": { "type": "string" },
+        "phone": { "type": "string" },
+        "parent_phone": { "type": "string" },
+        "status": { "type": "string", "enum": ["Inside", "Outside"] },
+        "qr_code_id": { "type": "string" }
+      },
+      "required": ["id", "name", "room_id"]
+    },
+    "Log": {
+      "title": "Log",
+      "description": "Check-in/out activity log",
+      "type": "object",
+      "properties": {
+        "student_id": { "type": "string" },
+        "action": { "type": "string", "enum": ["Check-in", "Check-out"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["Normal", "Late"] }
+      },
+      "required": ["student_id", "action", "timestamp", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/rooms/{roomId}": {
+      "schema": "Room",
+      "description": "Dormitory rooms"
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Student records"
+    },
+    "/logs/{logId}": {
+      "schema": "Log",
+      "description": "Activity logs"
+    }
+  }
+}

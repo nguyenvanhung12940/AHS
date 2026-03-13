@@ -106,7 +106,7 @@ async function startServer() {
   app.post("/api/login", async (req, res) => {
     const { email, password } = req.body;
     
-    // Hardcoded fallback for Vercel/Demo environments
+    // 1. Hardcoded fallback for Vercel/Demo environments
     if (email === "admin@school.com" && password === "admin123") {
       return res.json({
         id: 0,
@@ -116,30 +116,49 @@ async function startServer() {
       });
     }
 
+    if (email === "teacher@school.com" && password === "teacher123") {
+      return res.json({
+        id: 0,
+        email: "teacher@school.com",
+        role: "teacher",
+        name: "Teacher (Fallback Mode)"
+      });
+    }
+
     try {
-      // Try Supabase first
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .eq('password', password)
-        .single();
+      // 2. Try Supabase
+      try {
+        const { data: user, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', email)
+          .eq('password', password)
+          .maybeSingle(); // Use maybeSingle to avoid error on "not found"
 
-      if (user) {
-        const { password, ...userWithoutPassword } = user;
-        return res.json(userWithoutPassword);
+        if (user) {
+          const { password: _, ...userWithoutPassword } = user;
+          return res.json(userWithoutPassword);
+        }
+      } catch (supabaseErr) {
+        console.error("Supabase login error:", supabaseErr);
+        // Continue to SQLite fallback
       }
 
-      // Fallback to SQLite if Supabase fails or user not found
-      const sqliteUser = db.prepare("SELECT * FROM users WHERE email = ? AND password = ?").get(email, password) as any;
-      if (sqliteUser) {
-        const { password, ...userWithoutPassword } = sqliteUser;
-        return res.json(userWithoutPassword);
+      // 3. Fallback to SQLite
+      try {
+        const sqliteUser = db.prepare("SELECT * FROM users WHERE email = ? AND password = ?").get(email, password) as any;
+        if (sqliteUser) {
+          const { password: _, ...userWithoutPassword } = sqliteUser;
+          return res.json(userWithoutPassword);
+        }
+      } catch (sqliteErr) {
+        console.error("SQLite login error:", sqliteErr);
       }
 
-      res.status(401).json({ message: "Invalid credentials" });
+      res.status(401).json({ message: "Email hoặc mật khẩu không chính xác" });
     } catch (error) {
-      res.status(500).json({ message: "Database error" });
+      console.error("Login process error:", error);
+      res.status(500).json({ message: "Lỗi hệ thống khi đăng nhập" });
     }
   });
 

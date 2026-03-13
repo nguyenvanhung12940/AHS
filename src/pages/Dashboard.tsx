@@ -23,21 +23,66 @@ import {
   Legend
 } from 'recharts';
 import { DashboardStats } from '../types';
+import { db } from '../firebase';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 export const Dashboard: React.FC = () => {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [stats, setStats] = useState<DashboardStats>({
+    totalStudents: 0,
+    insideStudents: 0,
+    outsideStudents: 0,
+    totalRooms: 0,
+    roomsWithBeds: 0,
+    lateToday: 0
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/dashboard/stats')
-      .then(res => res.json())
-      .then(data => {
-        setStats(data);
-        setLoading(false);
-      });
+    // Real-time listeners for stats
+    const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
+      const students = snapshot.docs.map(doc => doc.data());
+      const total = students.length;
+      const inside = students.filter(s => s.status === 'Inside').length;
+      const outside = students.filter(s => s.status === 'Outside').length;
+      
+      setStats(prev => ({
+        ...prev,
+        totalStudents: total,
+        insideStudents: inside,
+        outsideStudents: outside
+      }));
+      setLoading(false);
+    });
+
+    const unsubRooms = onSnapshot(collection(db, 'rooms'), (snapshot) => {
+      const rooms = snapshot.docs.map(doc => doc.data());
+      setStats(prev => ({
+        ...prev,
+        totalRooms: rooms.length,
+        roomsWithBeds: rooms.filter(r => r.status === 'Available').length // Simplified
+      }));
+    });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const unsubLogs = onSnapshot(
+      query(collection(db, 'logs'), where('status', '==', 'Late'), where('timestamp', '>=', today)),
+      (snapshot) => {
+        setStats(prev => ({
+          ...prev,
+          lateToday: snapshot.size
+        }));
+      }
+    );
+
+    return () => {
+      unsubStudents();
+      unsubRooms();
+      unsubLogs();
+    };
   }, []);
 
-  if (loading || !stats) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
