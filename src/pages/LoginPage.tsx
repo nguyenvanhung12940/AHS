@@ -14,8 +14,14 @@ export const LoginPage: React.FC = () => {
     try {
       await signInWithGoogle();
       navigate('/');
-    } catch (err) {
+    } catch (err: any) {
+      // Don't show error if user just closed the popup
+      if (err.code === 'auth/popup-closed-by-user') {
+        setIsLoggingIn(false);
+        return;
+      }
       setError('Đăng nhập thất bại. Vui lòng thử lại.');
+      console.error('Login error:', err);
     } finally {
       setIsLoggingIn(false);
     }
