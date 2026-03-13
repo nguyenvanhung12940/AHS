@@ -80,10 +80,24 @@ export const LoginPage: React.FC = () => {
         </form>
 
         <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-          <p className="text-xs text-slate-400 mb-2">Tài khoản dùng thử:</p>
+          <p className="text-xs text-slate-400 mb-4">Hoặc đăng nhập nhanh bằng:</p>
+          <button 
+            onClick={() => {
+              setEmail('admin@school.com');
+              setPassword('admin123');
+              // Trigger submit after state update
+              setTimeout(() => {
+                const form = document.querySelector('form');
+                if (form) form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+              }, 100);
+            }}
+            className="w-full py-2 px-4 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2 mb-4"
+          >
+            <LogIn className="w-4 h-4 text-blue-600" />
+            Đăng nhập với quyền Quản trị viên
+          </button>
           <div className="text-xs text-slate-500 space-y-1">
-            <p>Quản trị viên: admin@school.com / admin123</p>
-            <p>Giáo viên: teacher@school.com / teacher123</p>
+            <p>Tài khoản dùng thử: admin@school.com / admin123</p>
           </div>
         </div>
       </div>
